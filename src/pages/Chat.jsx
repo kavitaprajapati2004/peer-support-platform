@@ -105,7 +105,6 @@ export default function Chat() {
     const sendRequest = async (targetUser) => {
         if (!user) return;
         try {
-            // Very simple check to ensure no duplicates. In production check thoroughly.
             await addDoc(collection(db, 'requests'), {
                 senderId: user.uid,
                 senderName: user.displayName || 'User',
@@ -180,9 +179,7 @@ export default function Chat() {
         };
     };
 
-    // -------------------------------------------------------------------------------- //
-    // RENDER SCREENS
-    // -------------------------------------------------------------------------------- //
+   
 
     if (view === 'room' && activeChat) {
         const peer = getPeerInfo(activeChat);

@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 export default function Login() {
     const { user, signInWithGoogle } = useAuth();
 
-    // If already logged in, redirect to the dashboard/home
     if (user) {
         return <Navigate to="/" replace />;
     }
