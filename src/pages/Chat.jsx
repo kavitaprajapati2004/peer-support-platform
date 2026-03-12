@@ -359,47 +359,17 @@ export default function Chat() {
                                     <div 
                                         key={u.uid} 
                                         onClick={async () => {
-                                            setShowDropdown(false);
-                                            setSearchTerm('');
-                                            
-                                            // Find existing chat with this specific user
-                                            const existingConv = conversations.find(c => c.participants.includes(u.uid));
-                                            
-                                            if (existingConv) {
-                                                setActiveChat(existingConv);
-                                                setView('room');
-                                            } else {
-                                                // Create new direct message chat like modern apps
-                                                try {
-                                                    const newConvRef = await addDoc(collection(db, 'conversations'), {
-                                                        participants: [user.uid, u.uid],
-                                                        participantNames: {
-                                                            [user.uid]: user.displayName || 'User',
-                                                            [u.uid]: u.displayName || 'User'
-                                                        },
-                                                        participantPhotos: {
-                                                            [user.uid]: user.photoURL || '',
-                                                            [u.uid]: u.photoURL || ''
-                                                        },
-                                                        updatedAt: serverTimestamp()
-                                                    });
-                                                    
-                                                    setActiveChat({
-                                                        id: newConvRef.id,
-                                                        participants: [user.uid, u.uid],
-                                                        participantNames: {
-                                                            [user.uid]: user.displayName || 'User',
-                                                            [u.uid]: u.displayName || 'User'
-                                                        },
-                                                        participantPhotos: {
-                                                            [user.uid]: user.photoURL || '',
-                                                            [u.uid]: u.photoURL || ''
-                                                        }
-                                                    });
+                                            if (u.connectionStatus === 'friend') {
+                                                setShowDropdown(false);
+                                                setSearchTerm('');
+                                                const existingConv = conversations.find(c => c.participants.includes(u.uid));
+                                                if (existingConv) {
+                                                    setActiveChat(existingConv);
                                                     setView('room');
-                                                } catch (error) {
-                                                    console.error("Error creating chat:", error);
                                                 }
+                                            } else {
+                                                // If not a friend, just keep dropdown open or update search text
+                                                setSearchTerm(u.displayName);
                                             }
                                         }}
                                         className="bg-white p-3 rounded-xl hover:bg-slate-50 flex items-center justify-between group transition-colors cursor-pointer"
