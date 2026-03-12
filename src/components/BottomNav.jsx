@@ -14,7 +14,7 @@ export default function BottomNav() {
     useEffect(() => {
         const handleRead = () => setLastSeenId(localStorage.getItem(`lastSeenNotif_${user?.uid || 'guest'}`));
         window.addEventListener('notificationsRead', handleRead);
-        handleRead(); // initial read
+        handleRead(); 
         return () => window.removeEventListener('notificationsRead', handleRead);
     }, [user?.uid]);
 

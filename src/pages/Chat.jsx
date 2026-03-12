@@ -7,12 +7,12 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Chat() {
     const { user } = useAuth();
-    const [view, setView] = useState('list'); // 'list', 'search', 'requests', 'room'
+    const [view, setView] = useState('list'); 
 
-    // Data states
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
 
     const [requests, setRequests] = useState([]);
     const [conversations, setConversations] = useState([]);
@@ -22,20 +22,17 @@ export default function Chat() {
     const [messageInput, setMessageInput] = useState('');
     const endRef = useRef(null);
 
-    // Fetch conversations and incoming requests
     useEffect(() => {
         if (!user) return;
 
-        // Listen to active conversations
         const convQ = query(collection(db, 'conversations'), where('participants', 'array-contains', user.uid));
         const unsubConv = onSnapshot(convQ, (snap) => {
             const arr = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Client-side sort to avoid requiring composite indexes immediately
             arr.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
             setConversations(arr);
         });
 
-        // Listen to incoming friend requests
+       
         const reqQ = query(collection(db, 'requests'), where('receiverId', '==', user.uid), where('status', '==', 'pending'));
         const unsubReq = onSnapshot(reqQ, (snap) => {
             setRequests(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -44,7 +41,7 @@ export default function Chat() {
         return () => { unsubConv(); unsubReq(); };
     }, [user]);
 
-    // Fetch messages for active room
+  
     useEffect(() => {
         if (view !== 'room' || !activeChat || !user) return;
         const msgQ = query(collection(db, 'conversations', activeChat.id, 'messages'), orderBy('createdAt', 'asc'));
@@ -60,7 +57,7 @@ export default function Chat() {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Fetch outbound requests to know who we already requested
+   
     useEffect(() => {
         if (!user) return;
         const outReqQ = query(collection(db, 'requests'), where('senderId', '==', user.uid), where('status', '==', 'pending'));
@@ -70,23 +67,29 @@ export default function Chat() {
         return () => unsub();
     }, [user]);
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!searchTerm.trim() || !user) return;
+    const handleSearchChange = async (e) => {
+        const queryText = e.target.value;
+        setSearchTerm(queryText);
+        setShowDropdown(true);
+        
+        if (!queryText.trim() || !user) {
+            setSearchResults([]);
+            setShowDropdown(false);
+            return;
+        }
+
         setIsSearching(true);
         try {
             const usersSnap = await getDocs(collection(db, 'users'));
             const results = [];
 
-            // Map our existing conversations into an array of peer IDs
             const friendIds = conversations.map(c => c.participants.find(id => id !== user.uid));
 
             usersSnap.forEach(docSnap => {
                 const u = docSnap.data();
 
-                // Show user if name matches (and not us)
                 if (u.uid !== user.uid &&
-                    (u.searchName?.includes(searchTerm.toLowerCase()) || u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()))) {
+                    (u.searchName?.includes(queryText.toLowerCase()) || u.displayName?.toLowerCase().includes(queryText.toLowerCase()))) {
 
                     let status = 'none';
                     if (friendIds.includes(u.uid)) status = 'friend';
@@ -135,7 +138,7 @@ export default function Chat() {
                 },
                 updatedAt: serverTimestamp()
             });
-            // Delete the request after accepting
+            
             await deleteDoc(doc(db, 'requests', req.id));
         } catch (error) {
             console.error("Error accepting request:", error);
@@ -185,7 +188,7 @@ export default function Chat() {
         const peer = getPeerInfo(activeChat);
         return (
             <div className="flex flex-col h-[calc(100vh-8rem)] max-w-md mx-auto bg-slate-50 relative">
-                {/* Header */}
+               
                 <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm cursor-pointer hover:bg-slate-50" onClick={() => setView('list')}>
                     <button className="p-1 -ml-2 text-slate-500 hover:text-primary-500 rounded-full">
                         <ArrowLeft size={22} />
@@ -199,7 +202,7 @@ export default function Chat() {
                     </div>
                 </div>
 
-                {/* Chat Area */}
+              
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                     {messages.length === 0 && (
                         <div className="text-center mt-10 text-slate-400 text-sm">
@@ -229,7 +232,7 @@ export default function Chat() {
                     <div ref={endRef} />
                 </div>
 
-                {/* Input */}
+               
                 <div className="p-3 bg-white border-t border-slate-200 mt-auto">
                     <form onSubmit={sendMessage} className="flex gap-2 relative">
                         <input
@@ -252,74 +255,6 @@ export default function Chat() {
         );
     }
 
-    if (view === 'search') {
-        return (
-            <div className="max-w-md mx-auto h-[calc(100vh-8rem)] bg-slate-50 flex flex-col">
-                <div className="bg-white p-4 shadow-sm border-b border-slate-200 flex items-center gap-3">
-                    <button onClick={() => setView('list')} className="text-slate-500 hover:text-primary-500">
-                        <ArrowLeft size={24} />
-                    </button>
-                    <div className="flex-1 relative">
-                        <form onSubmit={handleSearch}>
-                            <input
-                                autoFocus
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Search usernames..."
-                                className="w-full bg-slate-100 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                            />
-                            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-                            <button hidden type="submit"></button>
-                        </form>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {isSearching ? (
-                        <p className="text-center text-slate-400 mt-5">Searching...</p>
-                    ) : searchResults.length > 0 ? (
-                        searchResults.map((u) => (
-                            <div key={u.uid} className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}`} alt={u.displayName} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                                    <h3 className="font-bold text-slate-800 text-sm">{u.displayName}</h3>
-                                </div>
-                                {u.connectionStatus === 'friend' ? (
-                                    <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1">
-                                        <Check size={14} /> Friend
-                                    </span>
-                                ) : u.connectionStatus === 'requested' ? (
-                                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full flex items-center gap-1">
-                                        <Clock size={14} /> Requested
-                                    </span>
-                                ) : (
-                                    <button
-                                        onClick={() => {
-                                            sendRequest(u);
-                                            // Optimistically update the UI to show requested state immediately
-                                            setSearchResults(prev => prev.map(res => res.uid === u.uid ? { ...res, connectionStatus: 'requested' } : res));
-                                        }}
-                                        className="bg-primary-50 text-primary-600 p-2 rounded-lg hover:bg-primary-100 transition-colors"
-                                        title="Send Peer Request"
-                                    >
-                                        <UserPlus size={18} />
-                                    </button>
-                                )}
-                            </div>
-                        ))
-                    ) : searchTerm && !isSearching ? (
-                        <p className="text-center text-slate-400 mt-5 text-sm">No peers found. Try a different name.</p>
-                    ) : (
-                        <div className="text-center mt-10">
-                            <Users size={40} className="mx-auto text-slate-300 mb-3" />
-                            <p className="text-slate-500 text-sm font-medium">Search for peers to start a safe chat.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    }
 
     if (view === 'requests') {
         return (
@@ -369,7 +304,7 @@ export default function Chat() {
         );
     }
 
-    // LIST VIEW (Default)
+   
     return (
         <div className="max-w-md mx-auto px-4 py-6 md:py-10 bg-slate-50 min-h-screen">
             <div className="flex justify-between items-end mb-6">
@@ -378,12 +313,6 @@ export default function Chat() {
                     <p className="text-slate-500 text-sm">Connect securely with your peers</p>
                 </div>
                 <div className="flex gap-2">
-                    <button
-                        onClick={() => setView('search')}
-                        className="bg-primary-50 text-primary-600 p-2.5 rounded-full shadow-sm hover:bg-primary-100 transition-colors"
-                    >
-                        <UserPlus size={20} />
-                    </button>
                     <button
                         onClick={() => setView('requests')}
                         className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-full shadow-sm hover:bg-slate-50 transition-colors relative"
@@ -398,12 +327,125 @@ export default function Chat() {
                 </div>
             </div>
 
+            {/* Smart Search Bar */}
+            <div className="mb-6 relative z-20">
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        placeholder="Search users to connect..."
+                        className="w-full bg-white pl-11 pr-4 py-3.5 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 shadow-sm transition-shadow"
+                    />
+                    <Search className="absolute left-4 top-3.5 text-slate-400" size={18} />
+                    {searchTerm && (
+                        <button 
+                            onClick={() => { setSearchTerm(''); setSearchResults([]); setShowDropdown(false); }}
+                            className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600"
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Dropdown Suggestions */}
+                {searchTerm && showDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden max-h-72 overflow-y-auto">
+                        {isSearching ? (
+                            <div className="p-5 text-center text-slate-400 text-sm font-medium">Searching...</div>
+                        ) : searchResults.length > 0 ? (
+                            <div className="p-2 space-y-1">
+                                {searchResults.map((u) => (
+                                    <div 
+                                        key={u.uid} 
+                                        onClick={async () => {
+                                            setShowDropdown(false);
+                                            setSearchTerm('');
+                                            
+                                            // Find existing chat with this specific user
+                                            const existingConv = conversations.find(c => c.participants.includes(u.uid));
+                                            
+                                            if (existingConv) {
+                                                setActiveChat(existingConv);
+                                                setView('room');
+                                            } else {
+                                                // Create new direct message chat like modern apps
+                                                try {
+                                                    const newConvRef = await addDoc(collection(db, 'conversations'), {
+                                                        participants: [user.uid, u.uid],
+                                                        participantNames: {
+                                                            [user.uid]: user.displayName || 'User',
+                                                            [u.uid]: u.displayName || 'User'
+                                                        },
+                                                        participantPhotos: {
+                                                            [user.uid]: user.photoURL || '',
+                                                            [u.uid]: u.photoURL || ''
+                                                        },
+                                                        updatedAt: serverTimestamp()
+                                                    });
+                                                    
+                                                    setActiveChat({
+                                                        id: newConvRef.id,
+                                                        participants: [user.uid, u.uid],
+                                                        participantNames: {
+                                                            [user.uid]: user.displayName || 'User',
+                                                            [u.uid]: u.displayName || 'User'
+                                                        },
+                                                        participantPhotos: {
+                                                            [user.uid]: user.photoURL || '',
+                                                            [u.uid]: u.photoURL || ''
+                                                        }
+                                                    });
+                                                    setView('room');
+                                                } catch (error) {
+                                                    console.error("Error creating chat:", error);
+                                                }
+                                            }
+                                        }}
+                                        className="bg-white p-3 rounded-xl hover:bg-slate-50 flex items-center justify-between group transition-colors cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}`} alt={u.displayName} className="w-10 h-10 rounded-full object-cover border border-slate-100" referrerPolicy="no-referrer" />
+                                            <h3 className="font-bold text-slate-800 text-sm group-hover:text-primary-600 transition-colors">{u.displayName}</h3>
+                                        </div>
+                                        {u.connectionStatus === 'friend' ? (
+                                            <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1">
+                                                <Check size={14} /> Friend
+                                            </span>
+                                        ) : u.connectionStatus === 'requested' ? (
+                                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full flex items-center gap-1">
+                                                <Clock size={14} /> Requested
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    sendRequest(u);
+                                                    setSearchResults(prev => prev.map(res => res.uid === u.uid ? { ...res, connectionStatus: 'requested' } : res));
+                                                    setShowDropdown(false);
+                                                }}
+                                                className="bg-primary-50 text-primary-600 p-2 rounded-lg hover:bg-primary-100 transition-colors"
+                                                title="Send Peer Request"
+                                            >
+                                                <UserPlus size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-5 text-center text-slate-400 text-sm font-medium">No results found for "{searchTerm}"</div>
+                        )}
+                    </div>
+                )}
+            </div>
+
             <div className="space-y-2">
                 {conversations.length === 0 ? (
                     <div className="text-center mt-12 mb-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                         <MessageCircle size={48} className="mx-auto text-primary-200 mb-4" />
                         <h3 className="font-bold text-slate-700 mb-1">No Active Chats</h3>
-                        <p className="text-sm text-slate-500">Tap the search icon to find users and send a request to start talking.</p>
+                        <p className="text-sm text-slate-500">Search above to find users and send a request to start talking.</p>
                     </div>
                 ) : (
                     conversations.map((conv) => {

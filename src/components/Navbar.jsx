@@ -166,7 +166,7 @@ export default function Navbar() {
                     </div>
                     {userData?.isAdmin === true && (
                         <Link to="/admin" className="text-emerald-500 hover:text-emerald-600 transition-colors p-2 rounded-full hover:bg-slate-50" title="Admin Dashboard">
-                            <ShieldCheck size={22} />
+                            <ShieldCheck size={29} />
                         </Link>
                     )}
 

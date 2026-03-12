@@ -13,7 +13,7 @@ export default function Forum() {
     const [isPosting, setIsPosting] = useState(false);
     const [likingPosts, setLikingPosts] = useState(new Set());
 
-    // Form state
+   
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [activeTab, setActiveTab] = useState('All');
@@ -46,7 +46,6 @@ export default function Forum() {
                 likes: 0,
                 likedBy: [],
                 comments: 0,
-                // Assign a color dynamically based on topic
                 color: topic === 'Periods & Puberty' ? 'rose' : topic === 'Mental Health Support' ? 'emerald' : 'blue',
                 createdAt: serverTimestamp()
             });

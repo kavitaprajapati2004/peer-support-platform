@@ -20,17 +20,17 @@ export default function AdminDashboard() {
             return;
         }
 
-        // Listen to Users
+       
         const unsubUsers = onSnapshot(collection(db, 'users'), snap => {
             setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        // Listen to Groups
+       
         const unsubGroups = onSnapshot(collection(db, 'groups'), snap => {
             setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        // Listen to Forum Posts
+        
         const unsubPosts = onSnapshot(collection(db, 'forumPosts'), snap => {
             setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
                 <p className="text-slate-500 text-sm">Manage users, groups, and content</p>
             </div>
 
-            {/* Stats Overview */}
+          
             <div className="grid grid-cols-3 gap-3 mb-8">
                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-center">
                     <Users size={20} className="mx-auto text-primary-500 mb-1" />
@@ -125,7 +125,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-8">
-                {/* Users Section */}
+
                 <section>
                     <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-3">
                         <h2 className="text-lg font-bold text-slate-700">Registered Users</h2>

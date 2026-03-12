@@ -58,7 +58,6 @@ export const AuthProvider = ({ children }) => {
             const result = await signInWithPopup(auth, provider);
             const currentUser = result.user;
 
-            // Save user immediately upon successful sign-in
             if (currentUser) {
                 const userRef = doc(db, 'users', currentUser.uid);
                 const docSnap = await getDoc(userRef);

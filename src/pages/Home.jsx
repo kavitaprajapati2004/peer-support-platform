@@ -127,7 +127,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar">
-                    {/* Card 1 */}
+                   
                     <Link to="/resources#menstruation" className="min-w-[200px] snap-center bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="h-28 bg-rose-100 relative overflow-hidden flex items-center justify-center">
                             <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-multiply"></div>
@@ -139,7 +139,6 @@ export default function Home() {
                             <p className="text-xs text-slate-500 mt-1 line-clamp-2">Your body is changing, and that's perfectly normal.</p>
                         </div>
                     </Link>
-                    {/* Card 2 */}
                     <Link to="/resources#mental-health" className="min-w-[200px] snap-center bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="h-28 bg-emerald-100 relative overflow-hidden flex items-center justify-center">
                             <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-multiply"></div>

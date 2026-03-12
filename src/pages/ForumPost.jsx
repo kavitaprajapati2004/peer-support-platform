@@ -107,7 +107,7 @@ export default function ForumPost() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)] max-w-md mx-auto bg-slate-50 relative">
-            {/* Header */}
+           
             <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center sticky top-0 z-10 shadow-sm cursor-pointer hover:bg-slate-50" onClick={() => navigate('/forum')}>
                 <button className="p-1 -ml-2 text-slate-500 hover:text-primary-500 rounded-full mr-2">
                     <ArrowLeft size={22} />
@@ -116,7 +116,7 @@ export default function ForumPost() {
             </div>
 
             <div className="flex-1 overflow-y-auto pb-4">
-                {/* Main Post Content */}
+              
                 <div className="bg-white p-5 border-b border-slate-200 shadow-sm mb-3">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-500 border border-slate-200">
@@ -147,7 +147,7 @@ export default function ForumPost() {
                     </div>
                 </div>
 
-                {/* Comments List */}
+               
                 <div className="px-4 space-y-3">
                     {comments.length === 0 ? (
                         <p className="text-center text-slate-400 text-sm mt-6">No comments yet. Be the first to reply!</p>
@@ -222,7 +222,7 @@ export default function ForumPost() {
                 </div>
             </div>
 
-            {/* Comment Input */}
+           
             <div className="p-3 bg-white border-t border-slate-200 mt-auto shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
                 <form onSubmit={handleComment} className="flex gap-2 relative">
                     <input

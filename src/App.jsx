@@ -29,10 +29,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Login Route */}
         <Route path="/login" element={<Login />} />
 
-        {/* Protected Routes Wrapper */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AppLayout><Home /></AppLayout>} />
           <Route path="/groups" element={<AppLayout><Groups /></AppLayout>} />
