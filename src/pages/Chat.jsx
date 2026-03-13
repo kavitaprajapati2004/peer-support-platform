@@ -6,6 +6,50 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where,
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../context/AuthContext';
 
+const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    resolve(new File([blob], (file.name || 'image').replace(/\.[^/.]+$/, "") + ".jpeg", {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    }));
+                }, 'image/jpeg', 0.7);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
 export default function Chat() {
     const { user } = useAuth();
     const [view, setView] = useState('list'); 
@@ -27,8 +71,20 @@ export default function Chat() {
     const [replyingTo, setReplyingTo] = useState(null);
     const [forwardingMsg, setForwardingMsg] = useState(null);
     const [selectedMessageId, setSelectedMessageId] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
+    const [uploadingChats, setUploadingChats] = useState({});
+    const [imagePreview, setImagePreview] = useState(null);
+    const [selectedImageFile, setSelectedImageFile] = useState(null);
     const fileInputRef = useRef(null);
+
+    useEffect(() => {
+        setMessageInput('');
+        setReplyingTo(null);
+        setImagePreview(null);
+        setSelectedImageFile(null);
+        setSelectedMessageId(null);
+    }, [activeChat?.id]);
+
+    const isUploading = activeChat ? uploadingChats[activeChat.id] || false : false;
 
     useEffect(() => {
         if (!user) return;
@@ -161,50 +217,66 @@ export default function Chat() {
         }
     };
 
-    const sendMessage = async (e, imageUrl = null) => {
+    const sendMessage = async (e) => {
         if (e) e.preventDefault();
-        if ((!messageInput.trim() && !imageUrl) || !user || !activeChat) return;
-
-        const text = messageInput;
-        setMessageInput('');
         
+        const currentFile = selectedImageFile;
+        const currentText = messageInput;
+        const currentChatId = activeChat?.id;
+        
+        if ((!currentText.trim() && !currentFile) || !user || !currentChatId) return;
+
+        setMessageInput('');
         const replyData = replyingTo ? { id: replyingTo.id, text: replyingTo.text, senderId: replyingTo.senderId } : null;
         setReplyingTo(null);
+        setImagePreview(null);
+        setSelectedImageFile(null);
+
+        if (currentFile) {
+            setUploadingChats(prev => ({ ...prev, [currentChatId]: true }));
+        }
 
         try {
-            const msgRef = collection(db, 'conversations', activeChat.id, 'messages');
+            let finalImageUrl = null;
+            if (currentFile) {
+                const compressedFile = await compressImage(currentFile);
+                const storageRef = ref(storage, `chat_images/${currentChatId}/${Date.now()}_${compressedFile.name}`);
+                const snapshot = await uploadBytes(storageRef, compressedFile);
+                finalImageUrl = await getDownloadURL(snapshot.ref);
+            }
+
+            const msgRef = collection(db, 'conversations', currentChatId, 'messages');
             await addDoc(msgRef, {
-                text,
+                text: currentText,
                 senderId: user.uid,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 createdAt: serverTimestamp(),
                 replyTo: replyData,
-                imageUrl: imageUrl || null,
+                imageUrl: finalImageUrl,
                 isForwarded: false,
                 isDeleted: false
             });
-            await updateDoc(doc(db, 'conversations', activeChat.id), {
+            await updateDoc(doc(db, 'conversations', currentChatId), {
                 updatedAt: serverTimestamp()
             });
         } catch (error) {
             console.error("Error sending:", error);
         }
+        
+        if (currentFile) {
+            setUploadingChats(prev => ({ ...prev, [currentChatId]: false }));
+        }
     };
 
-    const handleImageChange = async (e) => {
+    const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (!file || !user || !activeChat) return;
 
-        setIsUploading(true);
-        try {
-            const storageRef = ref(storage, `chat_images/${activeChat.id}/${Date.now()}_${file.name}`);
-            const snapshot = await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(snapshot.ref);
-            await sendMessage(null, url);
-        } catch (error) {
-            console.error("Error uploading image:", error);
-        }
-        setIsUploading(false);
+        const reader = new FileReader();
+        reader.onload = (ev) => setImagePreview(ev.target.result);
+        reader.readAsDataURL(file);
+        setSelectedImageFile(file);
+        
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -371,6 +443,21 @@ export default function Chat() {
                         </div>
                     )}
                     
+                    {imagePreview && (
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-start relative">
+                            <div className="flex gap-3">
+                                <img src={imagePreview} alt="preview" className="h-16 w-16 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                                <div className="flex flex-col justify-center">
+                                    <p className="text-sm font-bold text-slate-700">Image Attached</p>
+                                    <p className="text-xs text-slate-500">Ready to send</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setImagePreview(null); setSelectedImageFile(null); }} className="text-slate-400 hover:text-rose-500 p-1 bg-white rounded-full shadow-sm border border-slate-100">
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+
                     <form onSubmit={(e) => sendMessage(e)} className="p-3 flex gap-2 items-end">
                         <button 
                             type="button" 
@@ -398,7 +485,7 @@ export default function Chat() {
                         </div>
                         <button
                             type="submit"
-                            disabled={(!messageInput.trim() && !isUploading) || isUploading}
+                            disabled={(!messageInput.trim() && !selectedImageFile) || isUploading}
                             className="w-11 h-11 shrink-0 bg-primary-500 rounded-full flex items-center justify-center text-white shadow-md disabled:opacity-50 hover:bg-primary-600 transition-colors"
                         >
                             <Send size={18} className="translate-x-[1px]" />
