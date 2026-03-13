@@ -71,10 +71,12 @@ export default function Chat() {
     const [replyingTo, setReplyingTo] = useState(null);
     const [forwardingMsg, setForwardingMsg] = useState(null);
     const [selectedMessageId, setSelectedMessageId] = useState(null);
+    const [deletingMsg, setDeletingMsg] = useState(null);
     const [uploadingChats, setUploadingChats] = useState({});
     const [imagePreview, setImagePreview] = useState(null);
     const [selectedImageFile, setSelectedImageFile] = useState(null);
     const fileInputRef = useRef(null);
+    const holdTimeout = useRef(null);
 
     useEffect(() => {
         setMessageInput('');
@@ -82,6 +84,7 @@ export default function Chat() {
         setImagePreview(null);
         setSelectedImageFile(null);
         setSelectedMessageId(null);
+        setDeletingMsg(null);
     }, [activeChat?.id]);
 
     const isUploading = activeChat ? uploadingChats[activeChat.id] || false : false;
@@ -280,19 +283,21 @@ export default function Chat() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleDeleteForMe = async (msgId) => {
-        await updateDoc(doc(db, 'conversations', activeChat.id, 'messages', msgId), {
+    const handleDeleteForMe = async () => {
+        if (!deletingMsg) return;
+        await updateDoc(doc(db, 'conversations', activeChat.id, 'messages', deletingMsg.id), {
             deletedFor: arrayUnion(user.uid)
         });
-        setSelectedMessageId(null);
+        setDeletingMsg(null);
     };
 
-    const handleDeleteForEveryone = async (msgId) => {
-        await updateDoc(doc(db, 'conversations', activeChat.id, 'messages', msgId), {
+    const handleDeleteForEveryone = async () => {
+        if (!deletingMsg) return;
+        await updateDoc(doc(db, 'conversations', activeChat.id, 'messages', deletingMsg.id), {
             isDeleted: true,
             text: 'This message was deleted'
         });
-        setSelectedMessageId(null);
+        setDeletingMsg(null);
     };
 
     const handleForwardSend = async (targetConv) => {
@@ -372,10 +377,44 @@ export default function Chat() {
                                     animate={{ opacity: 1, scale: 1 }}
                                     className={`flex flex-col relative group ${isMe ? 'ml-auto items-end' : 'mr-auto items-start'}`}
                                 >
-                                    <div className={`p-2 rounded-2xl shadow-sm text-[15px] leading-relaxed relative max-w-[85%] min-w-[120px] cursor-pointer ${
-                                        msg.isDeleted ? 'bg-slate-100 text-slate-400 italic border border-slate-200' :
-                                        isMe ? 'bg-primary-500 text-white rounded-tr-sm' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-sm'
-                                    }`} onClick={(e) => { e.stopPropagation(); setSelectedMessageId(showOptions ? null : msg.id); }}>
+                                    <div 
+                                        className={`p-2 rounded-2xl shadow-sm text-[15px] leading-relaxed relative max-w-[85%] min-w-[120px] cursor-pointer touch-manipulation transition-transform ${
+                                            msg.isDeleted ? 'bg-slate-100 text-slate-400 italic border border-slate-200' :
+                                            isMe ? 'bg-primary-500 text-white rounded-tr-sm' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-sm'
+                                        }`} 
+                                        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+                                        onTouchStart={() => {
+                                            holdTimeout.current = setTimeout(() => {
+                                                if (!msg.isDeleted) {
+                                                    setSelectedMessageId(msg.id);
+                                                    if (window.navigator?.vibrate) window.navigator.vibrate(50);
+                                                }
+                                            }, 400);
+                                        }}
+                                        onTouchMove={() => {
+                                            if (holdTimeout.current) clearTimeout(holdTimeout.current);
+                                        }}
+                                        onTouchEnd={() => {
+                                            if (holdTimeout.current) clearTimeout(holdTimeout.current);
+                                        }}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (!msg.isDeleted) {
+                                                setSelectedMessageId(msg.id);
+                                            }
+                                        }}
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            if (msg.isDeleted) return;
+                                            
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                setSelectedMessageId(showOptions ? null : msg.id); 
+                                            } else {
+                                                if (showOptions) setSelectedMessageId(null);
+                                            }
+                                        }}
+                                    >
                                         
                                         {!msg.isDeleted && msg.isForwarded && (
                                             <div className={`text-[10px] mb-1 flex items-center gap-1 font-bold ${isMe ? 'text-primary-100' : 'text-slate-400'}`}>
@@ -394,7 +433,9 @@ export default function Chat() {
                                         
                                         <div className="flex flex-wrap items-end justify-between gap-2">
                                             <span>{msg.text}</span>
-                                            <span className={`text-[10px] select-none float-right mt-1.5 ${msg.isDeleted ? 'text-slate-400' : isMe ? 'text-primary-100' : 'text-slate-400'}`}>{msg.time}</span>
+                                            <div className="flex items-center gap-1 mt-1.5 float-right">
+                                                <span className={`text-[10px] select-none ${msg.isDeleted ? 'text-slate-400' : isMe ? 'text-primary-100' : 'text-slate-400'}`}>{msg.time}</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -412,14 +453,9 @@ export default function Chat() {
                                             <button onClick={() => { setForwardingMsg(msg); setSelectedMessageId(null); }} className="p-2 text-slate-600 hover:text-primary-600 hover:bg-slate-50 rounded-lg" title="Forward">
                                                 <Forward size={16} />
                                             </button>
-                                            <button onClick={() => handleDeleteForMe(msg.id)} className="p-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Delete for me">
+                                            <button onClick={() => { setDeletingMsg(msg); setSelectedMessageId(null); }} className="p-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Delete">
                                                 <Trash2 size={16} />
                                             </button>
-                                            {isMe && (
-                                                <button onClick={() => handleDeleteForEveryone(msg.id)} className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border-l border-slate-100 ml-1 pl-3 font-bold text-xs whitespace-nowrap" title="Delete for everyone">
-                                                    Delete for everyone
-                                                </button>
-                                            )}
                                         </motion.div>
                                     )}
                                 </motion.div>
@@ -492,6 +528,87 @@ export default function Chat() {
                         </button>
                     </form>
                 </div>
+
+                {/* Forward Modal */}
+                <AnimatePresence>
+                    {forwardingMsg && (
+                        <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-slate-900/40 backdrop-blur-sm" onClick={() => setForwardingMsg(null)}>
+                            <motion.div 
+                                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                                onClick={e => e.stopPropagation()}
+                                className="bg-white w-full max-w-md p-5 rounded-t-3xl sm:rounded-3xl shadow-2xl h-[70vh] sm:h-[500px] flex flex-col"
+                            >
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="font-extrabold text-slate-800 text-lg">Forward Message</h2>
+                                    <button onClick={() => setForwardingMsg(null)} className="p-2 text-slate-400 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
+                                </div>
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-sm text-slate-600 line-clamp-2 italic">
+                                    "{forwardingMsg.text || 'Image Attached'}"
+                                </div>
+                                <div className="flex-1 overflow-y-auto space-y-2">
+                                    {conversations.length === 0 ? (
+                                        <p className="text-center text-slate-400 mt-10">No peers to forward to.</p>
+                                    ) : conversations.map(c => {
+                                        const peerInfo = getPeerInfo(c);
+                                        return (
+                                            <div key={c.id} onClick={() => handleForwardSend(c)} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 hover:border-primary-200 cursor-pointer transition-colors group">
+                                                <div className="flex items-center gap-3">
+                                                    <img src={peerInfo.photo} className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+                                                    <span className="font-bold text-slate-800 text-sm">{peerInfo.name}</span>
+                                                </div>
+                                                <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-500 flex justify-center items-center group-hover:bg-primary-500 group-hover:text-white transition-colors">
+                                                    <Forward size={14} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Delete Confirmation Modal */}
+                <AnimatePresence>
+                    {deletingMsg && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setDeletingMsg(null)}>
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.95 }} 
+                                animate={{ opacity: 1, scale: 1 }} 
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                onClick={e => e.stopPropagation()}
+                                className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden"
+                            >
+                                <div className="p-5 border-b border-slate-100">
+                                    <h3 className="text-lg font-bold text-slate-800 text-center">Delete message?</h3>
+                                </div>
+                                <div className="flex flex-col p-2 space-y-1 bg-slate-50/50">
+                                    {deletingMsg.senderId === user?.uid && (
+                                        <button 
+                                            onClick={handleDeleteForEveryone}
+                                            className="w-full text-center py-3.5 px-4 text-rose-600 font-bold hover:bg-rose-50 rounded-xl transition-colors"
+                                        >
+                                            Delete for Everyone
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={handleDeleteForMe}
+                                        className="w-full text-center py-3.5 px-4 text-slate-700 font-bold hover:bg-slate-100 rounded-xl transition-colors"
+                                    >
+                                        Delete for Me
+                                    </button>
+                                    <div className="h-px bg-slate-200 mx-2 my-1" />
+                                    <button 
+                                        onClick={() => setDeletingMsg(null)}
+                                        className="w-full text-center py-3.5 px-4 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors font-medium"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
             </div>
         );
     }
@@ -681,45 +798,6 @@ export default function Chat() {
                     })
                 )}
             </div>
-
-            {/* Forward Modal */}
-            <AnimatePresence>
-                {forwardingMsg && (
-                    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-slate-900/40 backdrop-blur-sm" onClick={() => setForwardingMsg(null)}>
-                        <motion.div 
-                            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-                            onClick={e => e.stopPropagation()}
-                            className="bg-white w-full max-w-md p-5 rounded-t-3xl sm:rounded-3xl shadow-2xl h-[70vh] sm:h-[500px] flex flex-col"
-                        >
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="font-extrabold text-slate-800 text-lg">Forward Message</h2>
-                                <button onClick={() => setForwardingMsg(null)} className="p-2 text-slate-400 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
-                            </div>
-                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-sm text-slate-600 line-clamp-2 italic">
-                                "{forwardingMsg.text || 'Image Attached'}"
-                            </div>
-                            <div className="flex-1 overflow-y-auto space-y-2">
-                                {conversations.length === 0 ? (
-                                    <p className="text-center text-slate-400 mt-10">No peers to forward to.</p>
-                                ) : conversations.map(c => {
-                                    const peerInfo = getPeerInfo(c);
-                                    return (
-                                        <div key={c.id} onClick={() => handleForwardSend(c)} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 hover:border-primary-200 cursor-pointer transition-colors group">
-                                            <div className="flex items-center gap-3">
-                                                <img src={peerInfo.photo} className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
-                                                <span className="font-bold text-slate-800 text-sm">{peerInfo.name}</span>
-                                            </div>
-                                            <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-500 flex justify-center items-center group-hover:bg-primary-500 group-hover:text-white transition-colors">
-                                                <Forward size={14} />
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }
